@@ -1835,7 +1835,8 @@
                 sma200.push(s200);
             }
 
-            drawChart(canvas, ctx, dpr, [prices, sma50, sma200], ['#f7931a', '#00b4ff', '#9c27b0'], [false, true, true], 'Price');
+            const chartDates = STATE.priceDates.slice(-days);
+            drawChart(canvas, ctx, dpr, [prices, sma50, sma200], ['#f7931a', '#00b4ff', '#9c27b0'], [false, true, true], 'Price', false, chartDates);
         }
 
         function renderScoreHistoryChart() {
@@ -1854,10 +1855,12 @@
                 return;
             }
 
-            drawChart(canvas, ctx, dpr, [STATE.scoreHistoryChart], ['#ffd740'], [false], 'Score', true);
+            const scoreDays = getEffectiveChartDays();
+            const scoreDates = STATE.priceDates.slice(-scoreDays);
+            drawChart(canvas, ctx, dpr, [STATE.scoreHistoryChart], ['#ffd740'], [false], 'Score', true, scoreDates);
         }
 
-        function drawChart(canvas, ctx, dpr, datasets, colors, dashes, unit, withZones = false) {
+        function drawChart(canvas, ctx, dpr, datasets, colors, dashes, unit, withZones = false, dates = null) {
             canvas.width = canvas.offsetWidth * dpr;
             canvas.height = canvas.offsetHeight * dpr;
             ctx.scale(dpr, dpr);
@@ -1966,11 +1969,22 @@
             ctx.fillStyle = '#666';
             ctx.font = '11px Inter';
             ctx.textAlign = 'center';
-            const stepSize = Math.ceil(datasets[0].length / 6);
+            const numLabels = width < 400 ? 4 : 6;
+            const stepSize = Math.ceil(datasets[0].length / numLabels);
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             for (let i = 0; i < datasets[0].length; i += stepSize) {
                 const x = padding.left + (chartWidth / (datasets[0].length - 1)) * i;
-                const daysAgo = datasets[0].length - 1 - i;
-                const label = daysAgo === 0 ? 'Now' : daysAgo + 'd';
+                let label;
+                if (dates && dates[i]) {
+                    const d = dates[i];
+                    label = months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2);
+                } else {
+                    // Fallback: estimate date from days ago
+                    const daysAgo = datasets[0].length - 1 - i;
+                    const d = new Date();
+                    d.setDate(d.getDate() - daysAgo);
+                    label = daysAgo === 0 ? 'Now' : months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2);
+                }
                 ctx.fillText(label, x, height - 15);
             }
         }
@@ -2019,8 +2033,13 @@
         function renderBacktest() {
             calculateFullScoreHistory();
 
-            const prices = STATE.fullScorePrices;
-            const scoreHistory = STATE.fullScoreHistory;
+            // Slice to match selected timeframe
+            const days = getEffectiveChartDays();
+            const allPrices = STATE.fullScorePrices;
+            const allScores = STATE.fullScoreHistory;
+            const sliceStart = Math.max(0, allPrices.length - days);
+            const prices = allPrices.slice(sliceStart);
+            const scoreHistory = allScores.slice(sliceStart);
 
             if (prices.length < 10) return;
 
@@ -2072,18 +2091,26 @@
 
             document.getElementById('backtestTradeCount').textContent = roundTrips;
 
-            // Sample data for chart performance (every 3rd point)
-            const sampledModel = [], sampledBH = [];
-            for (let i = 0; i < modelEquity.length; i += 3) {
+            // Build dates for backtest period
+            const allBtDates = STATE.priceDates.slice(200);
+            const btDates = allBtDates.slice(sliceStart);
+
+            // Sample data for chart performance
+            const maxPoints = 500;
+            const sampleStep = Math.max(1, Math.floor(modelEquity.length / maxPoints));
+            const sampledModel = [], sampledBH = [], sampledDates = [];
+            for (let i = 0; i < modelEquity.length; i += sampleStep) {
                 sampledModel.push(modelEquity[i]);
                 sampledBH.push(bhEquity[i]);
+                if (btDates[i]) sampledDates.push(btDates[i]);
+                else sampledDates.push(null);
             }
 
             const canvas = document.getElementById('backtestChart');
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
 
-            drawChart(canvas, ctx, dpr, [sampledModel, sampledBH], ['#00e676', '#ffd740'], [false, false], 'Equity');
+            drawChart(canvas, ctx, dpr, [sampledModel, sampledBH], ['#00e676', '#ffd740'], [false, false], 'Equity', false, sampledDates);
         }
 
         // ========== TRADE LOGGER ==========
