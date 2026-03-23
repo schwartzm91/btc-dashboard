@@ -923,6 +923,31 @@
             .trade-table td {
                 padding: 8px;
             }
+
+            .chart-canvas {
+                height: 260px;
+            }
+
+            .backtest-chart-container {
+                height: 260px;
+            }
+
+            #tradeTableContainer {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .backtest-stats {
+                flex-wrap: wrap;
+            }
+
+            .container {
+                padding: 16px;
+            }
+
+            .chart-tabs {
+                flex-wrap: wrap;
+            }
         }
     </style>
 </head>
@@ -1038,6 +1063,8 @@
                     <button class="chart-tab" data-days="180">6M</button>
                     <button class="chart-tab" data-days="365">1Y</button>
                     <button class="chart-tab" data-days="730">2Y</button>
+                    <button class="chart-tab" data-days="1825">5Y</button>
+                    <button class="chart-tab" data-days="9999">All</button>
                 </div>
             </div>
             <canvas class="chart-canvas" id="priceChart"></canvas>
@@ -1180,6 +1207,7 @@
         // ========== STATE ==========
         const STATE = {
             prices: [],
+            priceDates: [],
             currentData: null,
             fearGreed: null,
             historicalFG: [],
@@ -1319,14 +1347,26 @@
             }
         }
 
-        async function fetchPriceHistory(days = 730) {
+        async function fetchPriceHistory() {
             try {
-                const limit = Math.min(days, 1000);
-                const klines = await fetchJSON(
-                    `https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${limit}`
-                );
+                // Fetch max history by chaining calls (Binance limit = 1000 per call)
+                // BTC trading started on Binance ~2017-08, fetch from 2017-01-01
+                const allKlines = [];
+                let startTime = new Date('2017-01-01').getTime();
+                const now = Date.now();
 
-                STATE.prices = klines.map(k => parseFloat(k[4]));
+                while (startTime < now) {
+                    const url = `https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000&startTime=${startTime}`;
+                    const klines = await fetchJSON(url);
+                    if (!klines || klines.length === 0) break;
+                    allKlines.push(...klines);
+                    // Next batch starts after the last candle's close time
+                    startTime = klines[klines.length - 1][6] + 1;
+                    if (klines.length < 1000) break;
+                }
+
+                STATE.prices = allKlines.map(k => parseFloat(k[4]));
+                STATE.priceDates = allKlines.map(k => new Date(k[0]));
                 return STATE.prices;
             } catch (error) {
                 showError('Failed to fetch price history');
@@ -1773,17 +1813,22 @@
             });
         }
 
+        function getEffectiveChartDays() {
+            return STATE.chartDays >= 9999 ? STATE.prices.length : Math.min(STATE.chartDays, STATE.prices.length);
+        }
+
         function renderPriceChart() {
             const canvas = document.getElementById('priceChart');
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
 
-            const prices = STATE.prices.slice(-STATE.chartDays);
+            const days = getEffectiveChartDays();
+            const prices = STATE.prices.slice(-days);
             const sma50 = [];
             const sma200 = [];
 
             for (let i = 0; i < prices.length; i++) {
-                const endIdx = STATE.prices.length - STATE.chartDays + i + 1;
+                const endIdx = STATE.prices.length - days + i + 1;
                 const s50 = calculateSMA(STATE.prices.slice(0, endIdx), 50);
                 const s200 = calculateSMA(STATE.prices.slice(0, endIdx), 200);
                 sma50.push(s50);
@@ -1819,7 +1864,7 @@
 
             const width = canvas.offsetWidth;
             const height = canvas.offsetHeight;
-            const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+            const padding = { top: 20, right: 20, bottom: 40, left: width < 400 ? 50 : 70 };
             const chartWidth = width - padding.left - padding.right;
             const chartHeight = height - padding.top - padding.bottom;
 
@@ -1875,7 +1920,13 @@
             for (let i = 0; i <= 5; i++) {
                 const val = maxVal - ((maxVal - minVal) / 5) * i;
                 const y = padding.top + (chartHeight / 5) * i;
-                const label = unit === 'Price' ? '$' + Math.round(val).toLocaleString() : Math.round(val);
+                let label;
+                if (unit === 'Price') {
+                    const v = Math.round(val);
+                    label = v >= 1000 ? '$' + (v / 1000).toFixed(v >= 100000 ? 0 : 1) + 'k' : '$' + v;
+                } else {
+                    label = Math.round(val);
+                }
                 ctx.fillText(label, padding.left - 10, y + 4);
             }
 
@@ -1927,7 +1978,7 @@
         // Calculate score history for the VISIBLE chart period
         function calculateScoreHistoryForChart() {
             STATE.scoreHistoryChart = [];
-            const chartDays = STATE.chartDays;
+            const chartDays = getEffectiveChartDays();
 
             for (let i = 0; i < chartDays; i++) {
                 const endIdx = STATE.prices.length - chartDays + i + 1;
