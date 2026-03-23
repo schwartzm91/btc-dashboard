@@ -1,0 +1,2283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC Valuation Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #1e1e2e;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btc-icon {
+            width: 48px;
+            height: 48px;
+            background: radial-gradient(circle, #f7931a, #f7931a);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 28px;
+            color: white;
+            box-shadow: 0 0 20px rgba(247, 147, 26, 0.5);
+        }
+
+        .header-text h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .header-text p {
+            font-size: 13px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 13px;
+        }
+
+        .last-updated {
+            color: #666;
+        }
+
+        .refresh-btn {
+            background: #1e1e2e;
+            border: 1px solid #2a2a3e;
+            color: #ffd740;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 13px;
+        }
+
+        .refresh-btn:hover {
+            background: #2a2a3e;
+            border-color: #ffd740;
+        }
+
+        /* Price Bar */
+        .price-bar {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 40px;
+            display: grid;
+            grid-template-columns: 1fr auto auto auto auto;
+            gap: 40px;
+            align-items: center;
+        }
+
+        .price-display {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+        }
+
+        .btc-price {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f7931a 0%, #ffd740 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .price-change {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .price-change.positive {
+            background: rgba(0, 230, 118, 0.15);
+            color: #00e676;
+        }
+
+        .price-change.negative {
+            background: rgba(255, 23, 68, 0.15);
+            color: #ff1744;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .meta-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .meta-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            color: #e0e0e0;
+        }
+
+        /* Score Section — v1 compact style with glow */
+        .score-section {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+        @media (max-width: 900px) { .score-section { grid-template-columns: 1fr; } }
+
+        .score-card {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 16px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: visible;
+        }
+        .score-card::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: radial-gradient(circle at center, var(--score-glow, rgba(255,215,64,0.06)) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .signals-card {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 16px;
+            padding: 24px;
+            overflow: visible;
+        }
+
+        .score-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #555570;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .score-gauge-container {
+            position: relative;
+            width: 200px;
+            height: 120px;
+            margin-bottom: 12px;
+        }
+        .score-gauge-container svg {
+            width: 200px;
+            height: 120px;
+        }
+        .gauge-bg { fill: none; stroke: #1e1e2e; stroke-width: 12; stroke-linecap: round; }
+        .gauge-fill { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset 1.5s ease, stroke 0.5s; }
+
+        .score-value {
+            position: absolute;
+            bottom: 0; left: 50%;
+            transform: translateX(-50%);
+            font-size: 48px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -2px;
+        }
+
+        .score-verdict {
+            font-size: 18px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .score-description {
+            font-size: 12px;
+            color: #8888a0;
+            text-align: center;
+            max-width: 260px;
+            line-height: 1.5;
+        }
+
+        /* Signals Grid — compact v1 inline style */
+        .signals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
+        }
+
+        .signal-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: #0d0d15;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
+            position: relative;
+            cursor: help;
+        }
+
+        .signal-item:hover {
+            border-color: #2a2a3e;
+        }
+
+        .signal-item:hover .signal-tooltip {
+            display: block;
+        }
+
+        .signal-tooltip {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            background: #1a1a2e;
+            border: 1px solid #3a3a5e;
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: 12px;
+            color: #ccc;
+            line-height: 1.6;
+            width: 320px;
+            max-width: 90vw;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            white-space: normal;
+            pointer-events: none;
+        }
+
+        .signal-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .signal-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e0e0e0;
+        }
+
+        .signal-value {
+            font-size: 11px;
+            color: #666;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .signal-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .signal-bar {
+            width: 60px;
+            height: 6px;
+            background: #0a0a0f;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .signal-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .signal-score {
+            font-size: 10px;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            min-width: 72px;
+            text-align: right;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            line-height: 1.3;
+        }
+
+        .signal-score-number {
+            font-size: 14px;
+            font-weight: 800;
+            display: block;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        /* Zone Guide — v1 left-border style */
+        .zone-guide {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-bottom: 28px;
+        }
+        @media (max-width: 700px) { .zone-guide { grid-template-columns: repeat(2, 1fr); } }
+
+        .zone {
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid #1e1e2e;
+            background: #16161f;
+            text-align: left;
+        }
+
+        .zone-color { display: none; }
+
+        .zone-range {
+            font-size: 18px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 2px;
+        }
+
+        .zone-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+
+        .zone-description {
+            font-size: 10px;
+            color: #555570;
+            line-height: 1.4;
+        }
+
+        .zone.strong-buy .zone-color { background: #00e676; }
+        .zone.buy .zone-color { background: #66bb6a; }
+        .zone.fair .zone-color { background: #ffd740; }
+        .zone.overvalued .zone-color { background: #ff9800; }
+        .zone.extreme-sell .zone-color { background: #ff1744; }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .metric-card {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 8px;
+            padding: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .metric-card:hover {
+            border-color: #2a2a3e;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        /* Chart Section */
+        .chart-section {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 40px;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .chart-tab {
+            background: #0a0a0f;
+            border: 1px solid #1e1e2e;
+            color: #999;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .chart-tab:hover {
+            border-color: #2a2a3e;
+        }
+
+        .chart-tab.active {
+            background: #1e1e2e;
+            color: #ffd740;
+            border-color: #ffd740;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 400px;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 24px;
+            font-size: 12px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 2px;
+            border-radius: 1px;
+        }
+
+        .legend-color.orange { background: #f7931a; }
+        .legend-color.blue { background: #00b4ff; }
+        .legend-color.purple { background: #9c27b0; }
+        .legend-color.gold { background: #ffd740; }
+        .legend-color.green { background: #00e676; }
+
+        /* Backtest Section */
+        .backtest-section {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+
+        .backtest-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .backtest-explanation {
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .backtest-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        .backtest-stat {
+            background: #0a0a0f;
+            border: 1px solid #1e1e2e;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .backtest-stat-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .backtest-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .backtest-chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 16px;
+        }
+
+        /* Trade Logger Section */
+        .trade-logger-section {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+
+        .trade-logger-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .pnl-scoreboard {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            background: #0a0a0f;
+            border: 1px solid #1e1e2e;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .pnl-scoreboard.hidden {
+            display: none;
+        }
+
+        .pnl-stat {
+            text-align: center;
+        }
+
+        .pnl-stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .pnl-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #e0e0e0;
+        }
+
+        .pnl-stat-value.positive {
+            color: #00e676;
+        }
+
+        .pnl-stat-value.negative {
+            color: #ff5252;
+        }
+
+        @media (max-width: 600px) {
+            .pnl-scoreboard {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+        }
+
+        .trade-logger-button {
+            background: #1e1e2e;
+            border: 1px solid #2a2a3e;
+            color: #ffd740;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .trade-logger-button:hover {
+            background: #2a2a3e;
+            border-color: #ffd740;
+        }
+
+        .trade-form {
+            background: #0a0a0f;
+            border: 1px solid #1e1e2e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .trade-form.visible {
+            display: block;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            color: #e0e0e0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #ffd740;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-submit {
+            background: #ffd740;
+            border: none;
+            color: #0a0a0f;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 13px;
+            flex: 1;
+        }
+
+        .form-submit:hover {
+            background: #ffe67e;
+        }
+
+        .form-cancel {
+            background: #1e1e2e;
+            border: 1px solid #2a2a3e;
+            color: #999;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 13px;
+            flex: 1;
+        }
+
+        .form-cancel:hover {
+            border-color: #999;
+        }
+
+        .trade-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+        }
+
+        .trade-table thead {
+            border-bottom: 2px solid #1e1e2e;
+        }
+
+        .trade-table th {
+            text-align: left;
+            padding: 12px;
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .trade-table td {
+            padding: 12px;
+            font-size: 13px;
+            border-bottom: 1px solid #1e1e2e;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .trade-table tbody tr {
+            background: #0a0a0f;
+            transition: background 0.2s ease;
+        }
+
+        .trade-table tbody tr:hover {
+            background: #16161f;
+        }
+
+        .trade-table tbody tr:nth-child(even) {
+            background: #0a0a0f;
+        }
+
+        .pnl-positive {
+            color: #00e676;
+        }
+
+        .pnl-negative {
+            color: #ff1744;
+        }
+
+        .delete-btn {
+            background: rgba(255, 23, 68, 0.2);
+            border: 1px solid #ff1744;
+            color: #ff1744;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-btn:hover {
+            background: #ff1744;
+            color: #fff;
+        }
+
+        .totals-row {
+            font-weight: 600;
+            background: #16161f !important;
+            border-top: 2px solid #1e1e2e;
+            border-bottom: none;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+            font-size: 13px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 0;
+            border-top: 1px solid #1e1e2e;
+            color: #666;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .footer a {
+            color: #ffd740;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Error Message */
+        .error-message {
+            background: rgba(255, 23, 68, 0.1);
+            border: 1px solid #ff1744;
+            color: #ff1744;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .price-bar {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .score-section {
+                grid-template-columns: 1fr;
+            }
+
+            .signals-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .zone-guide {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .signal-tooltip {
+                width: 250px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .header-right {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .signals-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .zone-guide {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .signal-tooltip {
+                width: 200px;
+                font-size: 11px;
+                padding: 10px 12px;
+            }
+
+            .trade-table {
+                font-size: 11px;
+            }
+
+            .trade-table th,
+            .trade-table td {
+                padding: 8px;
+            }
+
+            .chart-canvas {
+                height: 260px;
+            }
+
+            .backtest-chart-container {
+                height: 260px;
+            }
+
+            #tradeTableContainer {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .backtest-stats {
+                flex-wrap: wrap;
+            }
+
+            .container {
+                padding: 16px;
+            }
+
+            .chart-tabs {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Error Message -->
+        <div class="error-message" id="errorMessage"></div>
+
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="btc-icon">₿</div>
+                <div class="header-text">
+                    <h1>BTC Valuation Engine</h1>
+                    <p>Real-time composite scoring & on-chain analysis</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="last-updated">
+                    Last updated: <span id="lastUpdated">—</span>
+                </div>
+                <button class="refresh-btn" id="refreshBtn">Refresh</button>
+            </div>
+        </div>
+
+        <!-- Price Bar -->
+        <div class="price-bar">
+            <div class="price-display">
+                <div class="btc-price" id="btcPrice">—</div>
+                <div class="price-change" id="priceChange">—</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Market Cap</div>
+                <div class="meta-value" id="marketCap">—</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">24h Volume</div>
+                <div class="meta-value" id="volume24h">—</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">ATH</div>
+                <div class="meta-value" id="ath">—</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">ATH Drawdown</div>
+                <div class="meta-value" id="athDrawdown">—</div>
+            </div>
+        </div>
+
+        <!-- Score Section — v1 layout -->
+        <div class="score-section">
+            <div class="score-card" id="scoreCard">
+                <div class="score-label">Composite Valuation Score</div>
+                <div class="score-gauge-container">
+                    <svg viewBox="0 0 200 120">
+                        <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100" />
+                        <path class="gauge-fill" id="gaugeFill" d="M 20 100 A 80 80 0 0 1 180 100"
+                              stroke="#ffd740" stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+                    </svg>
+                    <div class="score-value" id="scoreNumber">—</div>
+                </div>
+                <div class="score-verdict" id="scoreVerdict">Loading...</div>
+                <div class="score-description" id="scoreDescription">Fetching market data...</div>
+            </div>
+
+            <div class="signals-card">
+                <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #555570; margin-bottom: 6px;">Signal Breakdown (weighted)</div>
+                <div style="font-size: 11px; color: #444460; margin-bottom: 14px; line-height: 1.5;">Each signal scores 0–100 (Strong Buy → Strong Sell). The composite score is the weighted sum: <span style="font-family: 'JetBrains Mono', monospace; color: #666;">CVS = Σ(signal × weight)</span>. Hover any signal for details.</div>
+                <div class="signals-grid" id="signalsGrid"></div>
+            </div>
+        </div>
+
+        <!-- Zone Guide -->
+        <div class="zone-guide">
+            <div class="zone" style="border-left: 3px solid #00e676;">
+                <div class="zone-range" style="color: #00e676;">0–20</div>
+                <div class="zone-label" style="color: #00e676;">Strong Buy</div>
+                <div class="zone-description">Extreme undervaluation. Historically rare. Max conviction zone.</div>
+            </div>
+            <div class="zone" style="border-left: 3px solid #66bb6a;">
+                <div class="zone-range" style="color: #66bb6a;">20–40</div>
+                <div class="zone-label" style="color: #66bb6a;">Buy Zone</div>
+                <div class="zone-description">Below fair value. Favorable risk/reward for accumulation.</div>
+            </div>
+            <div class="zone" style="border-left: 3px solid #ffd740;">
+                <div class="zone-range" style="color: #ffd740;">40–60</div>
+                <div class="zone-label" style="color: #ffd740;">Fair Value</div>
+                <div class="zone-description">Neutral zone. Hold or DCA. No strong directional edge.</div>
+            </div>
+            <div class="zone" style="border-left: 3px solid #ff9100;">
+                <div class="zone-range" style="color: #ff9100;">60–80</div>
+                <div class="zone-label" style="color: #ff9100;">Overvalued</div>
+                <div class="zone-description">Caution. Begin trimming exposure. Elevated downside risk.</div>
+            </div>
+            <div class="zone" style="border-left: 3px solid #ff1744;">
+                <div class="zone-range" style="color: #ff1744;">80–100</div>
+                <div class="zone-label" style="color: #ff1744;">Extreme Sell</div>
+                <div class="zone-description">Historically marks cycle tops. Reduce exposure aggressively.</div>
+            </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-grid" id="metricsGrid">
+            <!-- Populated by JS -->
+        </div>
+
+        <!-- Price Chart -->
+        <div class="chart-section">
+            <div class="chart-title">
+                <span>Price History & Moving Averages</span>
+                <div class="chart-tabs">
+                    <button class="chart-tab active" data-days="90">3M</button>
+                    <button class="chart-tab" data-days="180">6M</button>
+                    <button class="chart-tab" data-days="365">1Y</button>
+                    <button class="chart-tab" data-days="730">2Y</button>
+                    <button class="chart-tab" data-days="1825">5Y</button>
+                    <button class="chart-tab" data-days="9999">All</button>
+                </div>
+            </div>
+            <canvas class="chart-canvas" id="priceChart"></canvas>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-color orange"></div>
+                    <span>BTC Price</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color blue"></div>
+                    <span style="border-bottom: 2px dashed #00b4ff;">50-Day MA</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color purple"></div>
+                    <span style="border-bottom: 2px dashed #9c27b0;">200-Day MA</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Score History Chart -->
+        <div class="chart-section">
+            <div class="chart-title">
+                <span>Valuation Score History</span>
+            </div>
+            <canvas class="chart-canvas" id="scoreHistoryChart"></canvas>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-color gold"></div>
+                    <span>Composite Score</span>
+                </div>
+                <div class="legend-item" style="margin-left: auto; font-size: 11px; color: #666;">
+                    Shaded regions show valuation zones (Green=Strong Buy, Gold=Fair, Red=Extreme Sell)
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtest Section -->
+        <div class="backtest-section">
+            <div class="backtest-title">Backtest: What If You Followed The Model?</div>
+            <div class="backtest-explanation">
+                This simulation tests what would happen if you bought BTC every time the composite score dropped below 30 (undervalued) and sold every time it rose above 70 (overvalued), starting with $10,000 over the available price history.
+            </div>
+            <div class="backtest-stats">
+                <div class="backtest-stat">
+                    <div class="backtest-stat-label">Model Return</div>
+                    <div class="backtest-stat-value" id="backtestModelReturn">—</div>
+                </div>
+                <div class="backtest-stat">
+                    <div class="backtest-stat-label">Buy & Hold Return</div>
+                    <div class="backtest-stat-value" id="backtestBuyHoldReturn">—</div>
+                </div>
+                <div class="backtest-stat">
+                    <div class="backtest-stat-label">Number of Trades</div>
+                    <div class="backtest-stat-value" id="backtestTradeCount">—</div>
+                </div>
+            </div>
+            <div class="backtest-chart-container">
+                <canvas class="chart-canvas" id="backtestChart"></canvas>
+            </div>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-color green"></div>
+                    <span>Model Equity Curve</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color gold"></div>
+                    <span>Buy & Hold Equity Curve</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade Logger Section -->
+        <div class="trade-logger-section">
+            <div class="trade-logger-title">Trade Log — Track Your Buys</div>
+
+            <div class="pnl-scoreboard hidden" id="pnlScoreboard">
+                <div class="pnl-stat">
+                    <div class="pnl-stat-label">Total Invested</div>
+                    <div class="pnl-stat-value" id="pnlInvested">—</div>
+                </div>
+                <div class="pnl-stat">
+                    <div class="pnl-stat-label">Current Value</div>
+                    <div class="pnl-stat-value" id="pnlCurrentValue">—</div>
+                </div>
+                <div class="pnl-stat">
+                    <div class="pnl-stat-label">Total P&L</div>
+                    <div class="pnl-stat-value" id="pnlTotal">—</div>
+                </div>
+                <div class="pnl-stat">
+                    <div class="pnl-stat-label">Return</div>
+                    <div class="pnl-stat-value" id="pnlPercent">—</div>
+                </div>
+            </div>
+
+            <button class="trade-logger-button" id="logTradeBtn">Log New Buy</button>
+
+            <div class="trade-form" id="tradeForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Date</label>
+                        <input type="date" class="form-input" id="tradeDate">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">BTC Price (USD)</label>
+                        <input type="number" class="form-input" id="tradePrice" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">USD Amount</label>
+                        <input type="number" class="form-input" id="tradeAmount" placeholder="0.00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes (optional)</label>
+                    <input type="text" class="form-input" id="tradeNotes" placeholder="Add notes...">
+                </div>
+                <div class="form-buttons">
+                    <button class="form-submit" id="submitTradeBtn">Save Trade</button>
+                    <button class="form-cancel" id="cancelTradeBtn">Cancel</button>
+                </div>
+            </div>
+
+            <div id="tradeTableContainer">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>
+                Data sources: <a href="https://www.binance.com/en" target="_blank">Binance Vision API</a> •
+                <a href="https://cryptocompare.com" target="_blank">CryptoCompare</a> •
+                <a href="https://alternative.me" target="_blank">Alternative.me (Fear & Greed)</a> •
+                <a href="https://blockchain.com" target="_blank">Blockchain.com</a><br>
+                <strong>Disclaimer:</strong> This tool is for educational purposes only. Not investment advice. Past performance does not guarantee future results. Always conduct your own research.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // ========== STATE ==========
+        const STATE = {
+            prices: [],
+            priceDates: [],
+            currentData: null,
+            fearGreed: null,
+            historicalFG: [],
+            blockchainStats: null,
+            dxy: null,
+            exchangeRates: null,
+            chartDays: 90,
+            scoreHistory: [],
+            trades: [],
+        };
+
+        const SIGNAL_CONFIG = {
+            mayerMultiple: {
+                name: 'Mayer Multiple',
+                weight: 0.14,
+                tooltip: 'The Mayer Multiple is the current BTC price divided by the 200-day moving average. Historically, values below 0.8 have signaled major buying opportunities (seen at cycle bottoms), while values above 2.4 have marked blow-off tops. Score: 0 at ≤0.8, scales to 100 at ≥2.4. Weight: 14%'
+            },
+            fearGreedIndex: {
+                name: 'Fear & Greed',
+                weight: 0.14,
+                tooltip: 'The Fear & Greed Index measures crypto market sentiment from 0 (Extreme Fear) to 100 (Extreme Greed). It\'s a powerful contrarian indicator — extreme fear often marks bottoms, extreme greed marks tops. Score maps directly: 0 fear = 0 score (buy), 100 greed = 100 score (sell). Weight: 14%'
+            },
+            athDrawdown: {
+                name: 'ATH Drawdown',
+                weight: 0.12,
+                tooltip: 'Measures how far BTC has fallen from its all-time high. Deeper drawdowns (>50%) have historically been the best accumulation opportunities. Near ATH (0-5%) signals elevated risk. Score: lower drawdown = higher score (more risk). Weight: 12%'
+            },
+            hashRateMomentum: {
+                name: 'Hash Rate',
+                weight: 0.10,
+                tooltip: 'Bitcoin\'s hash rate reflects miner confidence and network security. Rising hash rate + fast block times (under 10 min) = miners are investing heavily = bullish. Calculated from blockchain.info difficulty and block speed data. Weight: 10%'
+            },
+            rsi14: {
+                name: 'RSI 14-Day',
+                weight: 0.08,
+                tooltip: 'The Relative Strength Index measures momentum on a 0-100 scale. Below 30 = oversold (historically good entries), above 70 = overbought (elevated reversal risk). Calculated from the last 14 days of price changes. Weight: 8%'
+            },
+            networkActivity: {
+                name: 'Network Activity',
+                weight: 0.08,
+                tooltip: 'Daily Bitcoin transaction count measures real network usage. Above 600K tx/day = high demand and adoption (bullish). Below 400K = reduced activity (bearish or quiet accumulation). Sourced from blockchain.info. Weight: 8%'
+            },
+            dmaRatio: {
+                name: '50/200 DMA Ratio',
+                weight: 0.07,
+                tooltip: 'The ratio of the 50-day to 200-day moving average. Above 1.0 = \'Golden Cross\' (bullish trend), below 1.0 = \'Death Cross\' (bearish). Extreme readings above 1.15 suggest overextension. Score rises with ratio. Weight: 7%'
+            },
+            minerRevenue: {
+                name: 'Miner Revenue',
+                weight: 0.06,
+                tooltip: 'When miner revenue is low relative to costs, weak miners capitulate and sell — historically a contrarian buy signal. High miner revenue = healthy network but can precede selling pressure. Calculated from blockchain.info mining data. Weight: 6%'
+            },
+            dxyProxy: {
+                name: 'DXY Index',
+                weight: 0.06,
+                tooltip: 'The US Dollar Index (DXY) measures dollar strength against a basket of currencies (EUR, JPY, GBP, CAD, SEK, CHF). Strong dollar (high DXY >104) is a headwind for BTC. Weak dollar (<96) is a tailwind. Calculated live from exchange rates. Weight: 6%'
+            },
+            volatility30d: {
+                name: 'Volatility 30d',
+                weight: 0.05,
+                tooltip: 'Annualized 30-day price volatility. Context matters: high volatility near ATH signals distribution/danger, while high volatility after a crash often marks bottoming. Low volatility can signal accumulation. Weight: 5%'
+            },
+            macdSignal: {
+                name: 'MACD Signal',
+                weight: 0.05,
+                tooltip: 'MACD (Moving Average Convergence Divergence) measures trend momentum. Positive histogram = bullish momentum, negative = bearish. The score normalizes the histogram value. Rising histogram from negative territory is a strong buy signal. Weight: 5%'
+            },
+            volumeTrend: {
+                name: 'Volume Trend',
+                weight: 0.05,
+                tooltip: 'Tracks the ratio of up-days to down-days over the past 20 trading sessions. More up-days = stronger buying pressure. Used as a confirmation signal for trend direction. Weight: 5%'
+            },
+        };
+
+        // ========== UTILITIES ==========
+        function formatPrice(value) {
+            if (!value) return '—';
+            return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatLargeNumber(value) {
+            if (!value) return '—';
+            if (value >= 1e12) return '$' + (value / 1e12).toFixed(2) + 'T';
+            if (value >= 1e9) return '$' + (value / 1e9).toFixed(2) + 'B';
+            if (value >= 1e6) return '$' + (value / 1e6).toFixed(2) + 'M';
+            return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = 'Error: ' + message;
+            errorEl.classList.add('visible');
+            setTimeout(() => errorEl.classList.remove('visible'), 10000);
+        }
+
+        async function fetchJSON(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Fetch error:', url, error);
+                throw error;
+            }
+        }
+
+        // ========== DATA FETCHING ==========
+        async function fetchBTCData() {
+            try {
+                const [ticker, ccData] = await Promise.all([
+                    fetchJSON('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT'),
+                    fetchJSON('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC&tsyms=USD'),
+                ]);
+
+                const price = parseFloat(ticker.lastPrice);
+                const priceChange = parseFloat(ticker.priceChangePercent);
+                const high24h = parseFloat(ticker.highPrice);
+                const low24h = parseFloat(ticker.lowPrice);
+                const volume24h = parseFloat(ticker.quoteVolume);
+                const marketCap = ccData.RAW.BTC.USD.MKTCAP;
+                const supply = ccData.RAW.BTC.USD.SUPPLY;
+
+                STATE.currentData = {
+                    price,
+                    priceChange,
+                    high24h,
+                    low24h,
+                    volume24h,
+                    marketCap,
+                    supply,
+                };
+
+                return STATE.currentData;
+            } catch (error) {
+                showError('Failed to fetch BTC market data');
+                throw error;
+            }
+        }
+
+        async function fetchPriceHistory() {
+            try {
+                // Fetch max history by chaining calls (Binance limit = 1000 per call)
+                // BTC trading started on Binance ~2017-08, fetch from 2017-01-01
+                const allKlines = [];
+                let startTime = new Date('2017-01-01').getTime();
+                const now = Date.now();
+
+                while (startTime < now) {
+                    const url = `https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000&startTime=${startTime}`;
+                    const klines = await fetchJSON(url);
+                    if (!klines || klines.length === 0) break;
+                    allKlines.push(...klines);
+                    // Next batch starts after the last candle's close time
+                    startTime = klines[klines.length - 1][6] + 1;
+                    if (klines.length < 1000) break;
+                }
+
+                STATE.prices = allKlines.map(k => parseFloat(k[4]));
+                STATE.priceDates = allKlines.map(k => new Date(k[0]));
+                return STATE.prices;
+            } catch (error) {
+                showError('Failed to fetch price history');
+                throw error;
+            }
+        }
+
+        async function fetchFearGreed() {
+            try {
+                const data = await fetchJSON('https://api.alternative.me/fng/?limit=31');
+                STATE.fearGreed = data.data[0];
+                STATE.historicalFG = data.data;
+                return STATE.fearGreed;
+            } catch (error) {
+                showError('Failed to fetch Fear & Greed index');
+                throw error;
+            }
+        }
+
+        async function fetchBlockchainStats() {
+            try {
+                STATE.blockchainStats = await fetchJSON('https://api.blockchain.info/stats');
+                return STATE.blockchainStats;
+            } catch (error) {
+                showError('Failed to fetch blockchain stats');
+                throw error;
+            }
+        }
+
+        async function fetchExchangeRates() {
+            try {
+                STATE.exchangeRates = await fetchJSON('https://api.exchangerate-api.com/v4/latest/USD');
+                calculateDXY();
+                return STATE.exchangeRates;
+            } catch (error) {
+                showError('Failed to fetch exchange rates');
+                throw error;
+            }
+        }
+
+        function calculateDXY() {
+            if (!STATE.exchangeRates) return;
+            const rates = STATE.exchangeRates.rates;
+            const eur = rates.EUR;
+            const jpy = rates.JPY;
+            const gbp = rates.GBP;
+            const cad = rates.CAD;
+            const sek = rates.SEK;
+            const chf = rates.CHF;
+
+            const dxy = 50.14348112 *
+                Math.pow(1 / eur, 0.576) *
+                Math.pow(jpy, 0.136) *
+                Math.pow(1 / gbp, 0.119) *
+                Math.pow(cad, 0.091) *
+                Math.pow(sek, 0.042) *
+                Math.pow(chf, 0.036);
+
+            STATE.dxy = dxy;
+        }
+
+        // ========== TECHNICAL INDICATORS ==========
+        function calculateSMA(prices, period) {
+            if (prices.length < period) return null;
+            const sum = prices.slice(-period).reduce((a, b) => a + b, 0);
+            return sum / period;
+        }
+
+        function calculateRSI(prices, period = 14) {
+            if (prices.length < period + 1) return 50;
+            const changes = [];
+            for (let i = 1; i < prices.length; i++) {
+                changes.push(prices[i] - prices[i - 1]);
+            }
+            const gains = changes.slice(-period).filter(c => c > 0).reduce((a, b) => a + b, 0) / period;
+            const losses = -changes.slice(-period).filter(c => c < 0).reduce((a, b) => a + b, 0) / period;
+            const rs = gains / (losses || 0.001);
+            const rsi = 100 - (100 / (1 + rs));
+            return Math.max(0, Math.min(100, rsi));
+        }
+
+        function calculateVolatility(prices, period = 30) {
+            if (prices.length < period) return 0;
+            const recent = prices.slice(-period);
+            const mean = recent.reduce((a, b) => a + b, 0) / period;
+            const variance = recent.reduce((sum, p) => sum + Math.pow(p - mean, 2), 0) / period;
+            const stdDev = Math.sqrt(variance);
+            return (stdDev / mean) * 100;
+        }
+
+        function calculateMACD(prices) {
+            const ema12 = calculateEMA(prices, 12);
+            const ema26 = calculateEMA(prices, 26);
+            if (!ema12 || !ema26) return { macd: 50, signal: 50, histogram: 0 };
+            const macd = ema12 - ema26;
+            const signal = calculateEMA(prices.slice(-35), 9);
+            const histogram = macd - signal;
+            const normalized = 50 + Math.min(20, Math.max(-20, histogram / 10));
+            return { macd, signal, histogram: Math.max(0, Math.min(100, normalized)) };
+        }
+
+        function calculateEMA(prices, period) {
+            if (prices.length < period) return null;
+            const k = 2 / (period + 1);
+            let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+            for (let i = period; i < prices.length; i++) {
+                ema = prices[i] * k + ema * (1 - k);
+            }
+            return ema;
+        }
+
+        function calculateVolumeTrend(prices) {
+            if (prices.length < 20) return 50;
+            let upCount = 0;
+            for (let i = 1; i < Math.min(20, prices.length); i++) {
+                if (prices[i] > prices[i - 1]) upCount++;
+            }
+            return (upCount / 20) * 100;
+        }
+
+        // ========== SIGNAL CALCULATIONS ==========
+        function calculateSignals() {
+            const prices = STATE.prices;
+            const currentPrice = STATE.currentData.price;
+            const ath = Math.max(...prices);
+
+            const sma50 = calculateSMA(prices, 50);
+            const sma200 = calculateSMA(prices, 200);
+            const rsi = calculateRSI(prices);
+            const volatility = calculateVolatility(prices);
+            const macdData = calculateMACD(prices);
+            const volumeTrend = calculateVolumeTrend(prices);
+
+            const signals = {
+                mayerMultiple: sma200 ? (currentPrice / sma200) : 1,
+                fearGreedIndex: parseFloat(STATE.fearGreed?.value || 50),
+                rsi14: rsi,
+                athDrawdown: ((ath - currentPrice) / ath) * 100,
+                dmaRatio: sma50 && sma200 ? (sma50 / sma200) : 1,
+                volatility30d: volatility,
+                macdSignal: macdData.histogram,
+                volumeTrend: volumeTrend,
+                hashRateMomentum: calculateHashRateMomentum(),
+                networkActivity: calculateNetworkActivity(),
+                minerRevenue: calculateMinerRevenue(),
+                dxyProxy: STATE.dxy || 100,
+            };
+
+            return signals;
+        }
+
+        function calculateHashRateMomentum() {
+            if (!STATE.blockchainStats) return 50;
+            const minutesBetween = STATE.blockchainStats.minutes_between_blocks || 10;
+
+            /// Invert: fast blocks = LOW score (bullish), slow blocks = HIGH score (bearish)
+            const blockSpeedScore = Math.max(0, 100 - (10 / minutesBetween) * 100);
+            return Math.min(100, Math.max(0, blockSpeedScore));
+        }
+
+        function calculateNetworkActivity() {
+            if (!STATE.blockchainStats) return 50;
+            const ntx = STATE.blockchainStats.n_tx || 400000;
+
+            /// Invert: high tx count = LOW score (bullish), low tx count = HIGH score (bearish)
+            if (ntx < 400000) return Math.min(100, (1 - ntx / 400000) * 100);
+            if (ntx < 600000) return Math.max(50, 50 - ((ntx - 400000) / 200000) * 50);
+            return Math.max(0, 100 - (ntx / 600000) * 100);
+        }
+
+        function calculateMinerRevenue() {
+            if (!STATE.blockchainStats) return 50;
+            let minerRevenue = STATE.blockchainStats.miners_revenue_usd;
+            const nBtcMined = STATE.blockchainStats.n_btc_mined || 0;
+            const tradeVolume = STATE.blockchainStats.trade_volume_usd || 0;
+
+            if (!minerRevenue || minerRevenue === 0) {
+                /// Fix: divide by 1e8 to convert satoshis to BTC
+                const btcMined = nBtcMined / 1e8;
+                minerRevenue = (btcMined * STATE.currentData.price) || tradeVolume;
+            }
+
+            const normalized = Math.max(0, (25000000 - minerRevenue) / 25000000 * 100);
+            return Math.min(100, normalized);
+        }
+
+        function convertSignalToScore(signal, signalKey) {
+            let score = 50;
+
+            switch (signalKey) {
+                case 'mayerMultiple': {
+                    const mm = signal;
+                    if (mm < 0.8) score = 0;
+                    else if (mm < 1.2) score = (mm - 0.8) / 0.4 * 50;
+                    else if (mm < 2.4) score = 50 + (mm - 1.2) / 1.2 * 50;
+                    else score = 100;
+                    break;
+                }
+                case 'fearGreedIndex':
+                    score = signal;
+                    break;
+                case 'rsi14':
+                    if (signal < 30) score = (signal / 30) * 20;
+                    else if (signal < 70) score = 20 + ((signal - 30) / 40) * 60;
+                    else score = 80 + ((signal - 70) / 30) * 20;
+                    break;
+                case 'athDrawdown': {
+                    const drawdown = signal;
+                    score = Math.max(0, Math.min(100, 80 - (drawdown * 1.6)));
+                    break;
+                }
+                case 'dmaRatio': {
+                    const ratio = signal;
+                    if (ratio < 0.9) score = (ratio / 0.9) * 20;
+                    else if (ratio < 1.1) score = 20 + ((ratio - 0.9) / 0.2) * 60;
+                    else score = 80 + Math.min(20, (ratio - 1.1) / 0.1 * 20);
+                    break;
+                }
+                case 'volatility30d': {
+                    const vol = signal;
+                    if (vol < 2) score = 80;
+                    else if (vol < 5) score = 80 - ((vol - 2) / 3) * 40;
+                    else score = Math.max(20, 40 - ((vol - 5) / 10) * 20);
+                    break;
+                }
+                case 'macdSignal':
+                    score = signal;
+                    break;
+                case 'volumeTrend':
+                    score = signal;
+                    break;
+                case 'hashRateMomentum':
+                case 'networkActivity':
+                case 'minerRevenue':
+                case 'dxyProxy': {
+                    if (signalKey === 'dxyProxy') {
+                        score = Math.max(0, Math.min(100, 50 + (signal - 100) / 2));
+                    } else {
+                        score = signal;
+                    }
+                    break;
+                }
+            }
+
+            return Math.max(0, Math.min(100, score));
+        }
+
+        function calculateCompositeScore() {
+            const signals = calculateSignals();
+            let compositeScore = 0;
+
+            for (const [key, config] of Object.entries(SIGNAL_CONFIG)) {
+                const rawSignal = signals[key];
+                const score = convertSignalToScore(rawSignal, key);
+                compositeScore += score * config.weight;
+            }
+
+            return Math.max(0, Math.min(100, compositeScore));
+        }
+
+        // ========== RENDERING ==========
+        function renderPriceBar() {
+            const data = STATE.currentData;
+            const prices = STATE.prices;
+            const ath = Math.max(...prices);
+
+            document.getElementById('btcPrice').textContent = formatPrice(data.price);
+
+            const priceChangeEl = document.getElementById('priceChange');
+            const change = data.priceChange;
+            priceChangeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+            priceChangeEl.className = 'price-change ' + (change >= 0 ? 'positive' : 'negative');
+
+            document.getElementById('marketCap').textContent = formatLargeNumber(data.marketCap);
+            document.getElementById('volume24h').textContent = formatLargeNumber(data.volume24h);
+            document.getElementById('ath').textContent = formatPrice(ath);
+
+            const drawdown = ((ath - data.price) / ath) * 100;
+            document.getElementById('athDrawdown').textContent = drawdown.toFixed(2) + '%';
+        }
+
+        function renderScoreCard(score) {
+            let verdict, description, color, glowColor;
+
+            if (score < 20) {
+                verdict = 'Strong Buy';
+                description = 'Multiple signals indicate BTC is significantly undervalued. Historically, this zone has produced the best risk-adjusted returns.';
+                color = '#00e676';
+                glowColor = 'rgba(0,230,118,0.06)';
+            } else if (score < 40) {
+                verdict = 'Buy Zone';
+                description = 'BTC appears undervalued relative to historical norms. Favorable risk/reward for accumulating positions.';
+                color = '#66bb6a';
+                glowColor = 'rgba(102,187,106,0.06)';
+            } else if (score < 60) {
+                verdict = 'Fair Value';
+                description = 'BTC is trading near fair value. No strong edge either way. Continue DCA or hold current positions.';
+                color = '#ffd740';
+                glowColor = 'rgba(255,215,64,0.06)';
+            } else if (score < 80) {
+                verdict = 'Overvalued';
+                description = 'Caution warranted. Multiple indicators suggest elevated risk. Consider trimming or tightening stops.';
+                color = '#ff9100';
+                glowColor = 'rgba(255,145,0,0.06)';
+            } else {
+                verdict = 'Extreme — Take Profit';
+                description = 'Historically rare overvaluation. High probability of significant correction. Reduce exposure.';
+                color = '#ff1744';
+                glowColor = 'rgba(255,23,68,0.06)';
+            }
+
+            // SVG gauge
+            const fill = document.getElementById('gaugeFill');
+            const arcLen = 251.2;
+            const offset = arcLen - (score / 100) * arcLen;
+            fill.style.strokeDashoffset = offset;
+            fill.style.stroke = color;
+
+            document.getElementById('scoreNumber').textContent = Math.round(score);
+            document.getElementById('scoreNumber').style.color = color;
+            document.getElementById('scoreVerdict').textContent = verdict;
+            document.getElementById('scoreVerdict').style.color = color;
+            document.getElementById('scoreDescription').textContent = description;
+
+            const card = document.getElementById('scoreCard');
+            card.style.setProperty('--score-glow', glowColor);
+        }
+
+        function getScoreColor(score) {
+            if (score <= 20) return '#00e676';
+            if (score <= 40) return '#66bb6a';
+            if (score <= 60) return '#ffd740';
+            if (score <= 80) return '#ff9100';
+            return '#ff1744';
+        }
+
+        function getScoreLabel(score) {
+            if (score <= 10) return 'Strong Buy';
+            if (score <= 25) return 'Buy';
+            if (score <= 40) return 'Lean Buy';
+            if (score <= 60) return 'Neutral';
+            if (score <= 75) return 'Lean Sell';
+            if (score <= 90) return 'Sell';
+            return 'Strong Sell';
+        }
+
+        function renderSignals() {
+            const signals = calculateSignals();
+            const grid = document.getElementById('signalsGrid');
+            grid.innerHTML = '';
+
+            for (const [key, config] of Object.entries(SIGNAL_CONFIG)) {
+                const rawSignal = signals[key];
+                const score = convertSignalToScore(rawSignal, key);
+                const color = getScoreColor(score);
+
+                let valueStr = '';
+                if (key === 'mayerMultiple') valueStr = rawSignal.toFixed(2) + 'x';
+                else if (key === 'fearGreedIndex') {
+                    const fg = Math.round(rawSignal);
+                    const label = fg <= 25 ? 'Extreme Fear' : fg <= 45 ? 'Fear' : fg <= 55 ? 'Neutral' : fg <= 75 ? 'Greed' : 'Extreme Greed';
+                    valueStr = fg + ' — ' + label;
+                }
+                else if (key === 'rsi14') valueStr = rawSignal.toFixed(1);
+                else if (key === 'athDrawdown') valueStr = '-' + rawSignal.toFixed(1) + '%';
+                else if (key === 'dmaRatio') {
+                    const status = rawSignal >= 1 ? 'Golden' : 'Death';
+                    valueStr = rawSignal.toFixed(3) + ' (' + status + ')';
+                }
+                else if (key === 'volatility30d') valueStr = rawSignal.toFixed(1) + '% ann.';
+                else if (key === 'macdSignal') valueStr = rawSignal.toFixed(1);
+                else if (key === 'volumeTrend') valueStr = Math.round(rawSignal) + '%';
+                else if (key === 'dxyProxy') valueStr = rawSignal.toFixed(1);
+                else if (key === 'hashRateMomentum') valueStr = rawSignal.toFixed(0);
+                else if (key === 'networkActivity') valueStr = rawSignal.toFixed(0);
+                else if (key === 'minerRevenue') valueStr = rawSignal.toFixed(0);
+                else valueStr = Math.round(rawSignal);
+
+                const label = getScoreLabel(score);
+                const item = document.createElement('div');
+                item.className = 'signal-item';
+                item.innerHTML = `
+                    <div class="signal-tooltip">${config.tooltip || config.description}</div>
+                    <div class="signal-left">
+                        <div class="signal-name">${config.name}</div>
+                        <div class="signal-value">${valueStr}</div>
+                    </div>
+                    <div class="signal-right">
+                        <div class="signal-bar">
+                            <div class="signal-bar-fill" style="width: ${Math.max(score, 4)}%; background: ${color};"></div>
+                        </div>
+                        <div class="signal-score" style="color: ${color};"><span class="signal-score-number">${Math.round(score)}</span>${label}</div>
+                    </div>
+                `;
+                // Position tooltip near mouse on hover
+                item.addEventListener('mouseenter', function(e) {
+                    const tt = this.querySelector('.signal-tooltip');
+                    const rect = this.getBoundingClientRect();
+                    tt.style.left = rect.left + 'px';
+                    tt.style.top = (rect.top - tt.offsetHeight - 8) + 'px';
+                    // If tooltip goes above viewport, show below instead
+                    if (rect.top - tt.offsetHeight - 8 < 0) {
+                        tt.style.top = (rect.bottom + 8) + 'px';
+                    }
+                });
+                grid.appendChild(item);
+            }
+        }
+
+        function renderMetrics() {
+            const prices = STATE.prices;
+            const data = STATE.currentData;
+            const ath = Math.max(...prices);
+            const sma50 = calculateSMA(prices, 50);
+            const sma200 = calculateSMA(prices, 200);
+
+            const metrics = [
+                { label: 'Market Cap', value: formatLargeNumber(data.marketCap) },
+                { label: '24h Volume', value: formatLargeNumber(data.volume24h) },
+                { label: 'Circulating Supply', value: data.supply ? (data.supply / 1e6).toFixed(2) + 'M BTC' : '—' },
+                { label: 'Max Supply', value: '21M BTC' },
+                { label: '50-Day MA', value: sma50 ? formatPrice(sma50) : '—' },
+                { label: '200-Day MA', value: sma200 ? formatPrice(sma200) : '—' },
+                { label: 'All-Time High', value: formatPrice(ath) },
+                { label: '24h High', value: formatPrice(data.high24h) },
+                { label: '24h Low', value: formatPrice(data.low24h) },
+                { label: 'Hash Rate', value: STATE.blockchainStats?.hash_rate ? (STATE.blockchainStats.hash_rate / 1e18).toFixed(2) + ' EH/s' : '—' },
+                { label: 'Difficulty', value: STATE.blockchainStats?.difficulty ? (STATE.blockchainStats.difficulty / 1e12).toFixed(2) + 'T' : '—' },
+                { label: 'Daily Transactions', value: STATE.blockchainStats?.n_tx ? (STATE.blockchainStats.n_tx / 1000).toFixed(0) + 'K' : '—' },
+                { label: 'DXY Index', value: STATE.dxy ? STATE.dxy.toFixed(2) : '—' },
+            ];
+
+            const grid = document.getElementById('metricsGrid');
+            grid.innerHTML = '';
+
+            metrics.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'metric-card';
+                card.innerHTML = `
+                    <div class="metric-label">${m.label}</div>
+                    <div class="metric-value">${m.value}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function getEffectiveChartDays() {
+            return STATE.chartDays >= 9999 ? STATE.prices.length : Math.min(STATE.chartDays, STATE.prices.length);
+        }
+
+        function renderPriceChart() {
+            const canvas = document.getElementById('priceChart');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+
+            const days = getEffectiveChartDays();
+            const prices = STATE.prices.slice(-days);
+            const sma50 = [];
+            const sma200 = [];
+
+            for (let i = 0; i < prices.length; i++) {
+                const endIdx = STATE.prices.length - days + i + 1;
+                const s50 = calculateSMA(STATE.prices.slice(0, endIdx), 50);
+                const s200 = calculateSMA(STATE.prices.slice(0, endIdx), 200);
+                sma50.push(s50);
+                sma200.push(s200);
+            }
+
+            drawChart(canvas, ctx, dpr, [prices, sma50, sma200], ['#f7931a', '#00b4ff', '#9c27b0'], [false, true, true], 'Price');
+        }
+
+        function renderScoreHistoryChart() {
+            const canvas = document.getElementById('scoreHistoryChart');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+
+            if (!STATE.scoreHistoryChart || STATE.scoreHistoryChart.filter(v => v !== null).length === 0) {
+                canvas.width = canvas.offsetWidth * dpr;
+                canvas.height = canvas.offsetHeight * dpr;
+                ctx.scale(dpr, dpr);
+                ctx.fillStyle = '#666';
+                ctx.font = '14px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText('Insufficient data for score history', canvas.offsetWidth / 2, canvas.offsetHeight / 2);
+                return;
+            }
+
+            drawChart(canvas, ctx, dpr, [STATE.scoreHistoryChart], ['#ffd740'], [false], 'Score', true);
+        }
+
+        function drawChart(canvas, ctx, dpr, datasets, colors, dashes, unit, withZones = false) {
+            canvas.width = canvas.offsetWidth * dpr;
+            canvas.height = canvas.offsetHeight * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = canvas.offsetWidth;
+            const height = canvas.offsetHeight;
+            const padding = { top: 20, right: 20, bottom: 40, left: width < 400 ? 50 : 70 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+
+            let minVal = Infinity, maxVal = -Infinity;
+            datasets.forEach(dataset => {
+                dataset.forEach(v => {
+                    if (v) {
+                        minVal = Math.min(minVal, v);
+                        maxVal = Math.max(maxVal, v);
+                    }
+                });
+            });
+
+            const padding_val = (maxVal - minVal) * 0.1;
+            minVal -= padding_val;
+            maxVal += padding_val;
+
+            if (withZones) {
+                maxVal = 100;
+                minVal = 0;
+            }
+
+            if (withZones) {
+                const zones = [
+                    { min: 0, max: 20, color: 'rgba(0,230,118,0.1)' },
+                    { min: 20, max: 40, color: 'rgba(102,187,106,0.1)' },
+                    { min: 40, max: 60, color: 'rgba(255,215,64,0.1)' },
+                    { min: 60, max: 80, color: 'rgba(255,152,0,0.1)' },
+                    { min: 80, max: 100, color: 'rgba(255,23,68,0.1)' },
+                ];
+
+                zones.forEach(zone => {
+                    const y1 = padding.top + chartHeight - ((zone.max - minVal) / (maxVal - minVal)) * chartHeight;
+                    const y2 = padding.top + chartHeight - ((zone.min - minVal) / (maxVal - minVal)) * chartHeight;
+                    ctx.fillStyle = zone.color;
+                    ctx.fillRect(padding.left, y1, chartWidth, y2 - y1);
+                });
+            }
+
+            ctx.strokeStyle = '#1e1e2e';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                const y = padding.top + (chartHeight / 5) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#666';
+            ctx.font = '11px Inter';
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 5; i++) {
+                const val = maxVal - ((maxVal - minVal) / 5) * i;
+                const y = padding.top + (chartHeight / 5) * i;
+                let label;
+                if (unit === 'Price') {
+                    const v = Math.round(val);
+                    label = v >= 1000 ? '$' + (v / 1000).toFixed(v >= 100000 ? 0 : 1) + 'k' : '$' + v;
+                } else {
+                    label = Math.round(val);
+                }
+                ctx.fillText(label, padding.left - 10, y + 4);
+            }
+
+            datasets.forEach((dataset, datasetIdx) => {
+                const color = colors[datasetIdx];
+                const isDash = dashes[datasetIdx];
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                if (isDash) {
+                    ctx.setLineDash([5, 5]);
+                }
+
+                ctx.beginPath();
+                let started = false;
+                dataset.forEach((val, i) => {
+                    if (!val) return;
+                    const x = padding.left + (chartWidth / (dataset.length - 1)) * i;
+                    const y = padding.top + chartHeight - ((val - minVal) / (maxVal - minVal)) * chartHeight;
+                    if (!started) {
+                        ctx.moveTo(x, y);
+                        started = true;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                ctx.stroke();
+
+                if (isDash) {
+                    ctx.setLineDash([]);
+                }
+            });
+
+            ctx.fillStyle = '#666';
+            ctx.font = '11px Inter';
+            ctx.textAlign = 'center';
+            const stepSize = Math.ceil(datasets[0].length / 6);
+            for (let i = 0; i < datasets[0].length; i += stepSize) {
+                const x = padding.left + (chartWidth / (datasets[0].length - 1)) * i;
+                const daysAgo = datasets[0].length - 1 - i;
+                const label = daysAgo === 0 ? 'Now' : daysAgo + 'd';
+                ctx.fillText(label, x, height - 15);
+            }
+        }
+
+        // Calculate score history for the VISIBLE chart period
+        function calculateScoreHistoryForChart() {
+            STATE.scoreHistoryChart = [];
+            const chartDays = getEffectiveChartDays();
+
+            for (let i = 0; i < chartDays; i++) {
+                const endIdx = STATE.prices.length - chartDays + i + 1;
+                const priceSlice = STATE.prices.slice(0, endIdx);
+                if (priceSlice.length < 200) { STATE.scoreHistoryChart.push(null); continue; }
+
+                const sma200 = calculateSMA(priceSlice, 200);
+                const mayerMult = priceSlice[priceSlice.length - 1] / sma200;
+                const rsi = calculateRSI(priceSlice);
+
+                const mayerScore = Math.max(0, Math.min(100, mayerMult < 0.8 ? 0 : mayerMult > 2.4 ? 100 : ((mayerMult - 0.8) / 1.6) * 100));
+                const rsiScore = Math.max(0, Math.min(100, rsi < 30 ? 0 : rsi > 70 ? 100 : ((rsi - 30) / 40) * 100));
+
+                STATE.scoreHistoryChart.push(mayerScore * 0.6 + rsiScore * 0.4);
+            }
+        }
+
+        // Calculate score history for FULL price history (used by backtest)
+        function calculateFullScoreHistory() {
+            STATE.fullScoreHistory = [];
+            STATE.fullScorePrices = [];
+            const step = 1;
+
+            for (let i = 200; i < STATE.prices.length; i += step) {
+                const priceSlice = STATE.prices.slice(0, i + 1);
+                const sma200 = calculateSMA(priceSlice, 200);
+                const mayerMult = priceSlice[priceSlice.length - 1] / sma200;
+                const rsi = calculateRSI(priceSlice);
+
+                const mayerScore = Math.max(0, Math.min(100, mayerMult < 0.8 ? 0 : mayerMult > 2.4 ? 100 : ((mayerMult - 0.8) / 1.6) * 100));
+                const rsiScore = Math.max(0, Math.min(100, rsi < 30 ? 0 : rsi > 70 ? 100 : ((rsi - 30) / 40) * 100));
+
+                STATE.fullScoreHistory.push(mayerScore * 0.6 + rsiScore * 0.4);
+                STATE.fullScorePrices.push(STATE.prices[i]);
+            }
+        }
+
+        function renderBacktest() {
+            calculateFullScoreHistory();
+
+            const prices = STATE.fullScorePrices;
+            const scoreHistory = STATE.fullScoreHistory;
+
+            if (prices.length < 10) return;
+
+            let modelEquity = [10000];
+            let bhEquity = [10000];
+            let holding = false;
+            let entryPrice = 0;
+            let cashAtEntry = 10000;
+            let trades = 0;
+
+            for (let i = 1; i < scoreHistory.length; i++) {
+                const score = scoreHistory[i];
+                const price = prices[i];
+
+                // Buy & hold: simple ratio from start
+                bhEquity.push(10000 * (price / prices[0]));
+
+                if (score < 30 && !holding) {
+                    // BUY signal
+                    holding = true;
+                    entryPrice = price;
+                    cashAtEntry = modelEquity[modelEquity.length - 1];
+                    trades++;
+                } else if (score > 70 && holding) {
+                    // SELL signal
+                    holding = false;
+                    modelEquity.push(cashAtEntry * (price / entryPrice));
+                    trades++;
+                } else if (holding) {
+                    // Still holding — mark to market
+                    modelEquity.push(cashAtEntry * (price / entryPrice));
+                } else {
+                    // In cash — flat
+                    modelEquity.push(modelEquity[modelEquity.length - 1]);
+                }
+            }
+
+            const modelReturn = ((modelEquity[modelEquity.length - 1] / 10000) - 1) * 100;
+            const bhReturn = ((bhEquity[bhEquity.length - 1] / 10000) - 1) * 100;
+            const roundTrips = Math.floor(trades / 2);
+
+            const modelEl = document.getElementById('backtestModelReturn');
+            modelEl.textContent = (modelReturn >= 0 ? '+' : '') + modelReturn.toFixed(1) + '%';
+            modelEl.style.color = modelReturn >= 0 ? '#00e676' : '#ff1744';
+
+            const bhEl = document.getElementById('backtestBuyHoldReturn');
+            bhEl.textContent = (bhReturn >= 0 ? '+' : '') + bhReturn.toFixed(1) + '%';
+            bhEl.style.color = bhReturn >= 0 ? '#00e676' : '#ff1744';
+
+            document.getElementById('backtestTradeCount').textContent = roundTrips;
+
+            // Sample data for chart performance (every 3rd point)
+            const sampledModel = [], sampledBH = [];
+            for (let i = 0; i < modelEquity.length; i += 3) {
+                sampledModel.push(modelEquity[i]);
+                sampledBH.push(bhEquity[i]);
+            }
+
+            const canvas = document.getElementById('backtestChart');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+
+            drawChart(canvas, ctx, dpr, [sampledModel, sampledBH], ['#00e676', '#ffd740'], [false, false], 'Equity');
+        }
+
+        // ========== TRADE LOGGER ==========
+        function loadTrades() {
+            const saved = localStorage.getItem('btc_dashboard_trades');
+            STATE.trades = saved ? JSON.parse(saved) : [];
+        }
+
+        function saveTrades() {
+            localStorage.setItem('btc_dashboard_trades', JSON.stringify(STATE.trades));
+        }
+
+        function renderTradeTable() {
+            const container = document.getElementById('tradeTableContainer');
+            const scoreboard = document.getElementById('pnlScoreboard');
+
+            if (STATE.trades.length === 0) {
+                container.innerHTML = '<div class="empty-message">No trades logged yet. Click "Log New Buy" to get started.</div>';
+                scoreboard.classList.add('hidden');
+                return;
+            }
+
+            let totalInvested = 0;
+            let totalBTC = 0;
+            let totalCurrentValue = 0;
+
+            STATE.trades.forEach(trade => {
+                totalInvested += trade.usdAmount;
+                totalBTC += trade.btcQuantity;
+                totalCurrentValue += trade.btcQuantity * STATE.currentData.price;
+            });
+
+            const totalPnL = totalCurrentValue - totalInvested;
+            const totalPnLPercent = (totalPnL / totalInvested) * 100;
+
+            // Populate P&L scoreboard
+            scoreboard.classList.remove('hidden');
+            const pnlClass = totalPnL >= 0 ? 'positive' : 'negative';
+            document.getElementById('pnlInvested').textContent = formatPrice(totalInvested);
+            document.getElementById('pnlCurrentValue').textContent = formatPrice(totalCurrentValue);
+            const pnlTotalEl = document.getElementById('pnlTotal');
+            pnlTotalEl.textContent = (totalPnL >= 0 ? '+' : '') + formatPrice(totalPnL);
+            pnlTotalEl.className = 'pnl-stat-value ' + pnlClass;
+            const pnlPctEl = document.getElementById('pnlPercent');
+            pnlPctEl.textContent = (totalPnLPercent >= 0 ? '+' : '') + totalPnLPercent.toFixed(1) + '%';
+            pnlPctEl.className = 'pnl-stat-value ' + pnlClass;
+
+            let html = '<table class="trade-table"><thead><tr><th>Date</th><th>Price</th><th>Amount</th><th>BTC Qty</th><th>Score at Buy</th><th>Current Value</th><th>P&L ($)</th><th>P&L (%)</th><th>Notes</th><th></th></tr></thead><tbody>';
+
+            STATE.trades.forEach((trade, idx) => {
+                const currentValue = trade.btcQuantity * STATE.currentData.price;
+                const pnl = currentValue - trade.usdAmount;
+                const pnlPercent = (pnl / trade.usdAmount) * 100;
+                const pnlClass = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+
+                html += `<tr>
+                    <td>${trade.date}</td>
+                    <td>${formatPrice(trade.btcPrice)}</td>
+                    <td>${formatPrice(trade.usdAmount)}</td>
+                    <td>${trade.btcQuantity.toFixed(4)} BTC</td>
+                    <td>${Math.round(trade.modelScore)}</td>
+                    <td>${formatPrice(currentValue)}</td>
+                    <td class="${pnlClass}">${(pnl >= 0 ? '+' : '')}${formatPrice(pnl)}</td>
+                    <td class="${pnlClass}">${(pnlPercent >= 0 ? '+' : '')}${pnlPercent.toFixed(1)}%</td>
+                    <td>${trade.notes || '—'}</td>
+                    <td><button class="delete-btn" onclick="deleteTrade(${idx})">×</button></td>
+                </tr>`;
+            });
+
+            const totalPnLClass = totalPnL >= 0 ? 'pnl-positive' : 'pnl-negative';
+            html += `<tr class="totals-row">
+                <td colspan="2"><strong>TOTALS</strong></td>
+                <td><strong>${formatPrice(totalInvested)}</strong></td>
+                <td><strong>${totalBTC.toFixed(4)} BTC</strong></td>
+                <td></td>
+                <td><strong>${formatPrice(totalCurrentValue)}</strong></td>
+                <td class="${totalPnLClass}"><strong>${(totalPnL >= 0 ? '+' : '')}${formatPrice(totalPnL)}</strong></td>
+                <td class="${totalPnLClass}"><strong>${(totalPnLPercent >= 0 ? '+' : '')}${totalPnLPercent.toFixed(1)}%</strong></td>
+                <td colspan="2"></td>
+            </tr></tbody></table>`;
+
+            container.innerHTML = html;
+        }
+
+        function deleteTrade(idx) {
+            STATE.trades.splice(idx, 1);
+            saveTrades();
+            renderTradeTable();
+        }
+
+        function openTradeForm() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tradeDate').value = today;
+            document.getElementById('tradePrice').value = STATE.currentData ? STATE.currentData.price.toFixed(2) : '';
+            document.getElementById('tradeAmount').value = '';
+            document.getElementById('tradeNotes').value = '';
+            document.getElementById('tradeForm').classList.add('visible');
+        }
+
+        function closeTradeForm() {
+            document.getElementById('tradeForm').classList.remove('visible');
+        }
+
+        function submitTrade() {
+            const date = document.getElementById('tradeDate').value;
+            const btcPrice = parseFloat(document.getElementById('tradePrice').value);
+            const usdAmount = parseFloat(document.getElementById('tradeAmount').value);
+            const notes = document.getElementById('tradeNotes').value;
+
+            if (!date || !btcPrice || !usdAmount) {
+                showError('Please fill in all required fields');
+                return;
+            }
+
+            const trade = {
+                id: Date.now(),
+                date,
+                btcPrice,
+                usdAmount,
+                btcQuantity: usdAmount / btcPrice,
+                notes,
+                modelScore: calculateCompositeScore(),
+            };
+
+            STATE.trades.push(trade);
+            saveTrades();
+            renderTradeTable();
+            closeTradeForm();
+        }
+
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('lastUpdated').textContent = now.toLocaleTimeString();
+        }
+
+        // ========== MAIN LOAD ==========
+        async function loadAllData() {
+            try {
+                document.getElementById('errorMessage').classList.remove('visible');
+
+                await Promise.all([
+                    fetchBTCData(),
+                    fetchPriceHistory(730),
+                    fetchFearGreed(),
+                    fetchBlockchainStats(),
+                    fetchExchangeRates(),
+                ]);
+
+                renderPriceBar();
+                const score = calculateCompositeScore();
+                renderScoreCard(score);
+                renderSignals();
+                renderMetrics();
+                renderPriceChart();
+                calculateScoreHistoryForChart();
+                renderScoreHistoryChart();
+                renderBacktest();
+                renderTradeTable();
+                updateTimestamp();
+
+            } catch (error) {
+                console.error('Load error:', error);
+            }
+        }
+
+        // ========== EVENT LISTENERS ==========
+        document.getElementById('refreshBtn').addEventListener('click', loadAllData);
+
+        document.getElementById('logTradeBtn').addEventListener('click', openTradeForm);
+        document.getElementById('cancelTradeBtn').addEventListener('click', closeTradeForm);
+        document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
+
+        document.querySelectorAll('.chart-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+                STATE.chartDays = parseInt(e.target.dataset.days);
+                renderPriceChart();
+                calculateScoreHistoryForChart();
+                renderScoreHistoryChart();
+                renderBacktest();
+            });
+        });
+
+        window.addEventListener('resize', () => {
+            renderPriceChart();
+            renderScoreHistoryChart();
+            renderBacktest();
+        });
+
+        // ========== INIT ==========
+        loadTrades();
+        loadAllData();
+        setInterval(loadAllData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
