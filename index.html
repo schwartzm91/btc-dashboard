@@ -353,6 +353,72 @@
             text-transform: none;
         }
 
+        .fmv-section {
+            background: #16161f;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+
+        .fmv-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .fmv-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+
+        .fmv-card {
+            background: #0a0a0f;
+            border: 1px solid #1e1e2e;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .fmv-highlight {
+            border-color: #ffd740;
+            background: linear-gradient(135deg, rgba(255,215,64,0.05), rgba(255,215,64,0.02));
+        }
+
+        .fmv-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .fmv-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #e0e0e0;
+        }
+
+        .fmv-secondary {
+            font-size: 18px;
+            color: #888;
+        }
+
+        .fmv-sub {
+            font-size: 10px;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 900px) {
+            .fmv-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .fmv-grid { grid-template-columns: repeat(2, 1fr); }
+            .fmv-value { font-size: 18px; }
+        }
+
         /* Zone Guide — v1 left-border style */
         .zone-guide {
             display: grid;
@@ -1020,6 +1086,35 @@
             </div>
         </div>
 
+        <!-- Fair Market Value Section -->
+        <div class="fmv-section" id="fmvSection">
+            <div class="fmv-title">Estimated Fair Market Value</div>
+            <div class="fmv-grid">
+                <div class="fmv-card">
+                    <div class="fmv-label">Current Price</div>
+                    <div class="fmv-value" id="fmvCurrentPrice">—</div>
+                </div>
+                <div class="fmv-card fmv-highlight">
+                    <div class="fmv-label">Model Fair Value</div>
+                    <div class="fmv-value" id="fmvModelPrice">—</div>
+                    <div class="fmv-sub" id="fmvMethod">Power Law + 200-DMA blend</div>
+                </div>
+                <div class="fmv-card">
+                    <div class="fmv-label">Over/Under Valued</div>
+                    <div class="fmv-value" id="fmvDelta">—</div>
+                    <div class="fmv-sub" id="fmvDeltaPercent"></div>
+                </div>
+                <div class="fmv-card">
+                    <div class="fmv-label">Power Law Price</div>
+                    <div class="fmv-value fmv-secondary" id="fmvPowerLaw">—</div>
+                </div>
+                <div class="fmv-card">
+                    <div class="fmv-label">200-Day MA</div>
+                    <div class="fmv-value fmv-secondary" id="fmv200DMA">—</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Zone Guide -->
         <div class="zone-guide">
             <div class="zone" style="border-left: 3px solid #00e676;">
@@ -1059,12 +1154,17 @@
             <div class="chart-title">
                 <span>Price History & Moving Averages</span>
                 <div class="chart-tabs">
-                    <button class="chart-tab active" data-days="90">3M</button>
-                    <button class="chart-tab" data-days="180">6M</button>
-                    <button class="chart-tab" data-days="365">1Y</button>
-                    <button class="chart-tab" data-days="730">2Y</button>
-                    <button class="chart-tab" data-days="1825">5Y</button>
-                    <button class="chart-tab" data-days="9999">All</button>
+                    <button class="chart-tab" data-tf="1h">1h</button>
+                    <button class="chart-tab" data-tf="2h">2h</button>
+                    <button class="chart-tab" data-tf="6h">6h</button>
+                    <button class="chart-tab" data-tf="1d">1d</button>
+                    <button class="chart-tab" data-tf="1w">1w</button>
+                    <button class="chart-tab active" data-tf="90d">3M</button>
+                    <button class="chart-tab" data-tf="180d">6M</button>
+                    <button class="chart-tab" data-tf="365d">1Y</button>
+                    <button class="chart-tab" data-tf="730d">2Y</button>
+                    <button class="chart-tab" data-tf="1825d">5Y</button>
+                    <button class="chart-tab" data-tf="all">All</button>
                 </div>
             </div>
             <canvas class="chart-canvas" id="priceChart"></canvas>
@@ -1214,71 +1314,107 @@
             blockchainStats: null,
             dxy: null,
             exchangeRates: null,
+            goldPrice: null,
+            btcDominance: null,
+            stablecoinRatio: null,
             chartDays: 90,
+            chartMode: 'daily',
+            chartPeriod: '90d',
+            shortPrices: [],
+            shortDates: [],
+            shortCache: {},
             scoreHistory: [],
             trades: [],
+        };
+
+        const TIMEFRAME_CONFIG = {
+            '1h': { interval: '1m', limit: 60 },
+            '2h': { interval: '1m', limit: 120 },
+            '6h': { interval: '5m', limit: 72 },
+            '1d': { interval: '15m', limit: 96 },
+            '1w': { interval: '1h', limit: 168 },
         };
 
         const SIGNAL_CONFIG = {
             mayerMultiple: {
                 name: 'Mayer Multiple',
-                weight: 0.14,
-                tooltip: 'The Mayer Multiple is the current BTC price divided by the 200-day moving average. Historically, values below 0.8 have signaled major buying opportunities (seen at cycle bottoms), while values above 2.4 have marked blow-off tops. Score: 0 at ≤0.8, scales to 100 at ≥2.4. Weight: 14%'
+                weight: 0.11,
+                tooltip: 'The Mayer Multiple is the current BTC price divided by the 200-day moving average. Historically, values below 0.8 have signaled major buying opportunities (seen at cycle bottoms), while values above 2.4 have marked blow-off tops. Score: 0 at ≤0.8, scales to 100 at ≥2.4. Weight: 11%'
             },
             fearGreedIndex: {
                 name: 'Fear & Greed',
-                weight: 0.14,
-                tooltip: 'The Fear & Greed Index measures crypto market sentiment from 0 (Extreme Fear) to 100 (Extreme Greed). It\'s a powerful contrarian indicator — extreme fear often marks bottoms, extreme greed marks tops. Score maps directly: 0 fear = 0 score (buy), 100 greed = 100 score (sell). Weight: 14%'
+                weight: 0.11,
+                tooltip: 'The Fear & Greed Index measures crypto market sentiment from 0 (Extreme Fear) to 100 (Extreme Greed). It\'s a powerful contrarian indicator — extreme fear often marks bottoms, extreme greed marks tops. Score maps directly: 0 fear = 0 score (buy), 100 greed = 100 score (sell). Weight: 12%'
             },
             athDrawdown: {
                 name: 'ATH Drawdown',
-                weight: 0.12,
-                tooltip: 'Measures how far BTC has fallen from its all-time high. Deeper drawdowns (>50%) have historically been the best accumulation opportunities. Near ATH (0-5%) signals elevated risk. Score: lower drawdown = higher score (more risk). Weight: 12%'
+                weight: 0.09,
+                tooltip: 'Measures how far BTC has fallen from its all-time high. Deeper drawdowns (>50%) have historically been the best accumulation opportunities. Near ATH (0-5%) signals elevated risk. Score: lower drawdown = higher score (more risk). Weight: 10%'
             },
             hashRateMomentum: {
                 name: 'Hash Rate',
-                weight: 0.10,
-                tooltip: 'Bitcoin\'s hash rate reflects miner confidence and network security. Rising hash rate + fast block times (under 10 min) = miners are investing heavily = bullish. Calculated from blockchain.info difficulty and block speed data. Weight: 10%'
+                weight: 0.08,
+                tooltip: 'Bitcoin\'s hash rate reflects miner confidence and network security. Rising hash rate + fast block times (under 10 min) = miners are investing heavily = bullish. Calculated from blockchain.info difficulty and block speed data. Weight: 9%'
             },
             rsi14: {
                 name: 'RSI 14-Day',
-                weight: 0.08,
-                tooltip: 'The Relative Strength Index measures momentum on a 0-100 scale. Below 30 = oversold (historically good entries), above 70 = overbought (elevated reversal risk). Calculated from the last 14 days of price changes. Weight: 8%'
+                weight: 0.06,
+                tooltip: 'The Relative Strength Index measures momentum on a 0-100 scale. Below 30 = oversold (historically good entries), above 70 = overbought (elevated reversal risk). Calculated from the last 14 days of price changes. Weight: 7%'
             },
             networkActivity: {
                 name: 'Network Activity',
-                weight: 0.08,
-                tooltip: 'Daily Bitcoin transaction count measures real network usage. Above 600K tx/day = high demand and adoption (bullish). Below 400K = reduced activity (bearish or quiet accumulation). Sourced from blockchain.info. Weight: 8%'
+                weight: 0.07,
+                tooltip: 'Daily Bitcoin transaction count measures real network usage. Above 600K tx/day = high demand and adoption (bullish). Below 400K = reduced activity (bearish or quiet accumulation). Sourced from blockchain.info. Weight: 7%'
             },
             dmaRatio: {
                 name: '50/200 DMA Ratio',
-                weight: 0.07,
-                tooltip: 'The ratio of the 50-day to 200-day moving average. Above 1.0 = \'Golden Cross\' (bullish trend), below 1.0 = \'Death Cross\' (bearish). Extreme readings above 1.15 suggest overextension. Score rises with ratio. Weight: 7%'
+                weight: 0.06,
+                tooltip: 'The ratio of the 50-day to 200-day moving average. Above 1.0 = \'Golden Cross\' (bullish trend), below 1.0 = \'Death Cross\' (bearish). Extreme readings above 1.15 suggest overextension. Score rises with ratio. Weight: 6%'
+            },
+            goldRatio: {
+                name: 'Gold Ratio',
+                weight: 0.05,
+                tooltip: 'BTC priced in gold ounces (via PAXG). When BTC is cheap relative to gold (<5x), it\'s historically undervalued. Above 25x signals overextension. Gold is the traditional store-of-value benchmark — this ratio shows whether BTC is winning or losing the \'digital gold\' narrative. Weight: 5%'
+            },
+            btcDominance: {
+                name: 'BTC Dominance',
+                weight: 0.05,
+                tooltip: 'BTC\'s share of total crypto market cap. High dominance (>60%) means capital is concentrated in BTC — a sign of strength and flight-to-quality. Low dominance (<40%) signals alt-season euphoria, which historically precedes market-wide corrections. Weight: 5%'
+            },
+            stablecoinRatio: {
+                name: 'Stablecoin Ratio',
+                weight: 0.05,
+                tooltip: 'Total stablecoin supply (USDT + USDC) relative to BTC market cap. A high ratio (>30%) means massive dry powder sitting on the sidelines ready to buy — bullish. A low ratio (<10%) means most capital is already deployed with little buying power left. Weight: 5%'
+            },
+            powerLaw: {
+                name: 'Power Law',
+                weight: 0.05,
+                tooltip: 'The Bitcoin Power Law model predicts BTC\'s fair value based on days since the genesis block (Jan 3, 2009). Historically, BTC price follows a power law regression with high R². When current price is well below the model price, BTC is undervalued. When far above, it\'s overextended. This is one of the most reliable long-term BTC valuation frameworks. Weight: 5%'
             },
             minerRevenue: {
                 name: 'Miner Revenue',
-                weight: 0.06,
-                tooltip: 'When miner revenue is low relative to costs, weak miners capitulate and sell — historically a contrarian buy signal. High miner revenue = healthy network but can precede selling pressure. Calculated from blockchain.info mining data. Weight: 6%'
+                weight: 0.05,
+                tooltip: 'When miner revenue is low relative to costs, weak miners capitulate and sell — historically a contrarian buy signal. High miner revenue = healthy network but can precede selling pressure. Calculated from blockchain.info mining data. Weight: 5%'
             },
             dxyProxy: {
                 name: 'DXY Index',
-                weight: 0.06,
-                tooltip: 'The US Dollar Index (DXY) measures dollar strength against a basket of currencies (EUR, JPY, GBP, CAD, SEK, CHF). Strong dollar (high DXY >104) is a headwind for BTC. Weak dollar (<96) is a tailwind. Calculated live from exchange rates. Weight: 6%'
+                weight: 0.05,
+                tooltip: 'The US Dollar Index (DXY) measures dollar strength against a basket of currencies (EUR, JPY, GBP, CAD, SEK, CHF). Strong dollar (high DXY >104) is a headwind for BTC. Weak dollar (<96) is a tailwind. Calculated live from exchange rates. Weight: 5%'
             },
             volatility30d: {
                 name: 'Volatility 30d',
-                weight: 0.05,
-                tooltip: 'Annualized 30-day price volatility. Context matters: high volatility near ATH signals distribution/danger, while high volatility after a crash often marks bottoming. Low volatility can signal accumulation. Weight: 5%'
+                weight: 0.04,
+                tooltip: 'Annualized 30-day price volatility. Context matters: high volatility near ATH signals distribution/danger, while high volatility after a crash often marks bottoming. Low volatility can signal accumulation. Weight: 4%'
             },
             macdSignal: {
                 name: 'MACD Signal',
-                weight: 0.05,
-                tooltip: 'MACD (Moving Average Convergence Divergence) measures trend momentum. Positive histogram = bullish momentum, negative = bearish. The score normalizes the histogram value. Rising histogram from negative territory is a strong buy signal. Weight: 5%'
+                weight: 0.04,
+                tooltip: 'MACD (Moving Average Convergence Divergence) measures trend momentum. Positive histogram = bullish momentum, negative = bearish. The score normalizes the histogram value. Rising histogram from negative territory is a strong buy signal. Weight: 4%'
             },
             volumeTrend: {
                 name: 'Volume Trend',
-                weight: 0.05,
-                tooltip: 'Tracks the ratio of up-days to down-days over the past 20 trading sessions. More up-days = stronger buying pressure. Used as a confirmation signal for trend direction. Weight: 5%'
+                weight: 0.04,
+                tooltip: 'Tracks the ratio of up-days to down-days over the past 20 trading sessions. More up-days = stronger buying pressure. Used as a confirmation signal for trend direction. Weight: 4%'
             },
         };
 
@@ -1428,6 +1564,49 @@
             STATE.dxy = dxy;
         }
 
+        async function fetchMacroData() {
+            try {
+                // Fetch gold price via PAXG (gold-backed token)
+                const paxgData = await fetchJSON('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=PAXGUSDT');
+                STATE.goldPrice = parseFloat(paxgData.lastPrice);
+
+                // Fetch top 50 coins for BTC dominance + stablecoin ratio
+                const topCoins = await fetchJSON('https://min-api.cryptocompare.com/data/top/mktcapfull?limit=50&tsym=USD');
+                let totalMktCap = 0, btcMktCap = 0, usdtMktCap = 0, usdcMktCap = 0;
+                topCoins.Data.forEach(coin => {
+                    const mc = coin.RAW?.USD?.MKTCAP || 0;
+                    totalMktCap += mc;
+                    if (coin.CoinInfo.Name === 'BTC') btcMktCap = mc;
+                    if (coin.CoinInfo.Name === 'USDT') usdtMktCap = mc;
+                    if (coin.CoinInfo.Name === 'USDC') usdcMktCap = mc;
+                });
+                STATE.btcDominance = totalMktCap > 0 ? (btcMktCap / totalMktCap) * 100 : null;
+                STATE.stablecoinRatio = btcMktCap > 0 ? ((usdtMktCap + usdcMktCap) / btcMktCap) * 100 : null;
+            } catch (error) {
+                console.warn('Failed to fetch macro data:', error);
+            }
+        }
+
+        async function fetchShortTimeframeData(tf) {
+            if (STATE.shortCache[tf]) {
+                STATE.shortPrices = STATE.shortCache[tf].prices;
+                STATE.shortDates = STATE.shortCache[tf].dates;
+                return;
+            }
+            const config = TIMEFRAME_CONFIG[tf];
+            if (!config) return;
+            try {
+                const klines = await fetchJSON(
+                    `https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=${config.interval}&limit=${config.limit}`
+                );
+                STATE.shortPrices = klines.map(k => parseFloat(k[4]));
+                STATE.shortDates = klines.map(k => new Date(k[0]));
+                STATE.shortCache[tf] = { prices: STATE.shortPrices, dates: STATE.shortDates };
+            } catch (error) {
+                console.warn('Failed to fetch short timeframe data:', error);
+            }
+        }
+
         // ========== TECHNICAL INDICATORS ==========
         function calculateSMA(prices, period) {
             if (prices.length < period) return null;
@@ -1513,6 +1692,10 @@
                 networkActivity: calculateNetworkActivity(),
                 minerRevenue: calculateMinerRevenue(),
                 dxyProxy: STATE.dxy || 100,
+                goldRatio: calculateGoldRatio(),
+                btcDominance: calculateBtcDominance(),
+                stablecoinRatio: calculateStablecoinRatio(),
+                powerLaw: calculatePowerLaw(),
             };
 
             return signals;
@@ -1551,6 +1734,52 @@
 
             const normalized = Math.max(0, (25000000 - minerRevenue) / 25000000 * 100);
             return Math.min(100, normalized);
+        }
+
+        function calculateGoldRatio() {
+            if (!STATE.goldPrice || !STATE.currentData?.price) return 50;
+            const ratio = STATE.currentData.price / STATE.goldPrice;
+            // Range: 5 (deeply undervalued) to 25 (overextended)
+            return Math.max(0, Math.min(100, ((ratio - 5) / 20) * 100));
+        }
+
+        function calculateBtcDominance() {
+            if (!STATE.btcDominance) return 50;
+            // High dominance (65%) = strong BTC = score 0 (buy)
+            // Low dominance (35%) = alt euphoria = score 100 (sell)
+            return Math.max(0, Math.min(100, ((65 - STATE.btcDominance) / 30) * 100));
+        }
+
+        function calculateStablecoinRatio() {
+            if (!STATE.stablecoinRatio) return 50;
+            // High ratio (30%+) = dry powder = score 0 (buy)
+            // Low ratio (10%) = no powder = score 100 (sell)
+            return Math.max(0, Math.min(100, ((30 - STATE.stablecoinRatio) / 20) * 100));
+        }
+
+        function getPowerLawPrice(date) {
+            // Bitcoin Power Law: log10(price) = a * log10(days_since_genesis) + b
+            // Genesis block: Jan 3, 2009
+            const genesis = new Date('2009-01-03').getTime();
+            const daysSinceGenesis = (date.getTime() - genesis) / (1000 * 60 * 60 * 24);
+            if (daysSinceGenesis <= 0) return 0;
+            // Fitted constants (commonly used Power Law regression)
+            const a = 5.82;
+            const b = -17.01;
+            return Math.pow(10, a * Math.log10(daysSinceGenesis) + b);
+        }
+
+        function calculatePowerLaw() {
+            if (!STATE.currentData?.price) return 50;
+            const modelPrice = getPowerLawPrice(new Date());
+            STATE.powerLawPrice = modelPrice;
+            const ratio = STATE.currentData.price / modelPrice;
+            // ratio < 0.5 = deeply undervalued (score 0)
+            // ratio = 1.0 = fair value (score 50)
+            // ratio > 2.0 = overextended (score 100)
+            if (ratio <= 0.5) return 0;
+            if (ratio >= 2.0) return 100;
+            return ((ratio - 0.5) / 1.5) * 100;
         }
 
         function convertSignalToScore(signal, signalKey) {
@@ -1609,6 +1838,12 @@
                     }
                     break;
                 }
+                case 'goldRatio':
+                case 'btcDominance':
+                case 'stablecoinRatio':
+                case 'powerLaw':
+                    score = signal;
+                    break;
             }
 
             return Math.max(0, Math.min(100, score));
@@ -1743,6 +1978,16 @@
                 else if (key === 'hashRateMomentum') valueStr = rawSignal.toFixed(0);
                 else if (key === 'networkActivity') valueStr = rawSignal.toFixed(0);
                 else if (key === 'minerRevenue') valueStr = rawSignal.toFixed(0);
+                else if (key === 'goldRatio') {
+                    const ratio = STATE.goldPrice ? (STATE.currentData.price / STATE.goldPrice) : 0;
+                    valueStr = ratio.toFixed(1) + 'x';
+                }
+                else if (key === 'btcDominance') valueStr = (STATE.btcDominance || 0).toFixed(1) + '%';
+                else if (key === 'stablecoinRatio') valueStr = (STATE.stablecoinRatio || 0).toFixed(1) + '%';
+                else if (key === 'powerLaw') {
+                    const plPrice = STATE.powerLawPrice || 0;
+                    valueStr = '$' + Math.round(plPrice).toLocaleString();
+                }
                 else valueStr = Math.round(rawSignal);
 
                 const label = getScoreLabel(score);
@@ -1773,6 +2018,45 @@
                     }
                 });
                 grid.appendChild(item);
+            }
+        }
+
+        function renderFMV() {
+            if (!STATE.currentData?.price || !STATE.prices.length) return;
+
+            const currentPrice = STATE.currentData.price;
+            const sma200 = calculateSMA(STATE.prices, 200);
+            const powerLawPrice = getPowerLawPrice(new Date());
+
+            // Blend: 60% Power Law + 40% 200-DMA (if available)
+            let modelPrice;
+            if (sma200) {
+                modelPrice = powerLawPrice * 0.6 + sma200 * 0.4;
+            } else {
+                modelPrice = powerLawPrice;
+            }
+
+            const delta = currentPrice - modelPrice;
+            const deltaPercent = (delta / modelPrice) * 100;
+
+            document.getElementById('fmvCurrentPrice').textContent = '$' + Math.round(currentPrice).toLocaleString();
+            document.getElementById('fmvModelPrice').textContent = '$' + Math.round(modelPrice).toLocaleString();
+            document.getElementById('fmvPowerLaw').textContent = '$' + Math.round(powerLawPrice).toLocaleString();
+            document.getElementById('fmv200DMA').textContent = sma200 ? '$' + Math.round(sma200).toLocaleString() : '—';
+
+            const deltaEl = document.getElementById('fmvDelta');
+            const deltaPctEl = document.getElementById('fmvDeltaPercent');
+
+            if (delta >= 0) {
+                deltaEl.textContent = '+$' + Math.round(delta).toLocaleString();
+                deltaEl.style.color = '#ff5252';
+                deltaPctEl.textContent = '+' + deltaPercent.toFixed(1) + '% overvalued';
+                deltaPctEl.style.color = '#ff5252';
+            } else {
+                deltaEl.textContent = '-$' + Math.round(Math.abs(delta)).toLocaleString();
+                deltaEl.style.color = '#00e676';
+                deltaPctEl.textContent = deltaPercent.toFixed(1) + '% undervalued';
+                deltaPctEl.style.color = '#00e676';
             }
         }
 
@@ -1822,6 +2106,23 @@
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
 
+            if (STATE.chartMode === 'hourly') {
+                const prices = STATE.shortPrices;
+                const dates = STATE.shortDates;
+                if (prices.length === 0) return;
+                // Short MAs: ~8% and ~17% of data length so they start early
+                const shortMA = Math.max(3, Math.floor(prices.length / 12));
+                const longMA = Math.max(6, Math.floor(prices.length / 6));
+                const smaShort = [], smaLong = [];
+                for (let i = 0; i < prices.length; i++) {
+                    const slice = prices.slice(0, i + 1);
+                    smaShort.push(slice.length >= shortMA ? slice.slice(-shortMA).reduce((a,b) => a+b, 0) / shortMA : null);
+                    smaLong.push(slice.length >= longMA ? slice.slice(-longMA).reduce((a,b) => a+b, 0) / longMA : null);
+                }
+                drawChart(canvas, ctx, dpr, [prices, smaShort, smaLong], ['#f7931a', '#00b4ff', '#9c27b0'], [false, true, true], 'Price', false, dates, true);
+                return;
+            }
+
             const days = getEffectiveChartDays();
             const prices = STATE.prices.slice(-days);
             const sma50 = [];
@@ -1860,7 +2161,7 @@
             drawChart(canvas, ctx, dpr, [STATE.scoreHistoryChart], ['#ffd740'], [false], 'Score', true, scoreDates);
         }
 
-        function drawChart(canvas, ctx, dpr, datasets, colors, dashes, unit, withZones = false, dates = null) {
+        function drawChart(canvas, ctx, dpr, datasets, colors, dashes, unit, withZones = false, dates = null, forceTimeLabels = false) {
             canvas.width = canvas.offsetWidth * dpr;
             canvas.height = canvas.offsetHeight * dpr;
             ctx.scale(dpr, dpr);
@@ -1977,13 +2278,25 @@
                 let label;
                 if (dates && dates[i]) {
                     const d = dates[i];
-                    label = months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2);
+                    if (forceTimeLabels) {
+                        const h = d.getHours().toString().padStart(2, '0');
+                        const m = d.getMinutes().toString().padStart(2, '0');
+                        label = months[d.getMonth()] + ' ' + d.getDate() + ' ' + h + ':' + m;
+                    } else if (datasets[0].length <= 100) {
+                        label = months[d.getMonth()] + ' ' + d.getDate();
+                    } else {
+                        label = months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2);
+                    }
                 } else {
                     // Fallback: estimate date from days ago
                     const daysAgo = datasets[0].length - 1 - i;
                     const d = new Date();
                     d.setDate(d.getDate() - daysAgo);
-                    label = daysAgo === 0 ? 'Now' : months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2);
+                    if (datasets[0].length <= 100) {
+                        label = daysAgo === 0 ? 'Now' : months[d.getMonth()] + ' ' + d.getDate();
+                    } else {
+                        label = daysAgo === 0 ? 'Now' : months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2);
+                    }
                 }
                 ctx.fillText(label, x, height - 15);
             }
@@ -2253,16 +2566,18 @@
 
                 await Promise.all([
                     fetchBTCData(),
-                    fetchPriceHistory(730),
+                    fetchPriceHistory(),
                     fetchFearGreed(),
                     fetchBlockchainStats(),
                     fetchExchangeRates(),
+                    fetchMacroData(),
                 ]);
 
                 renderPriceBar();
                 const score = calculateCompositeScore();
                 renderScoreCard(score);
                 renderSignals();
+                renderFMV();
                 renderMetrics();
                 renderPriceChart();
                 calculateScoreHistoryForChart();
@@ -2284,10 +2599,27 @@
         document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
 
         document.querySelectorAll('.chart-tab').forEach(tab => {
-            tab.addEventListener('click', (e) => {
+            tab.addEventListener('click', async (e) => {
                 document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
                 e.target.classList.add('active');
-                STATE.chartDays = parseInt(e.target.dataset.days);
+                const tf = e.target.dataset.tf;
+                STATE.chartPeriod = tf;
+
+                if (TIMEFRAME_CONFIG[tf]) {
+                    // Short timeframe (hourly/minute data)
+                    STATE.chartMode = 'hourly';
+                    // Sync score history & backtest to closest daily window
+                    if (tf === '1h' || tf === '2h' || tf === '6h' || tf === '1d') STATE.chartDays = 7;
+                    else if (tf === '1w') STATE.chartDays = 14;
+                    await fetchShortTimeframeData(tf);
+                } else if (tf === 'all') {
+                    STATE.chartMode = 'daily';
+                    STATE.chartDays = 9999;
+                } else {
+                    STATE.chartMode = 'daily';
+                    STATE.chartDays = parseInt(tf);
+                }
+
                 renderPriceChart();
                 calculateScoreHistoryForChart();
                 renderScoreHistoryChart();
